@@ -128,7 +128,7 @@ uint32_t fib = 0, fib0 = 0, fib1 = 1;
    }                                   \
 
 unsigned int seqIterations = 47;
-unsigned int reqIterations = 500000;
+unsigned int reqIterations = 50000000;
 
 int abortTest=FALSE;
 int abortS1=FALSE, abortS2=FALSE, abortS3=FALSE, abortS4=FALSE, abortS5=FALSE, abortS6=FALSE, abortS7=FALSE;
