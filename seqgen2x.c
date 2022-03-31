@@ -1,9 +1,8 @@
 /* ========================================================================== */
 /*                                                                            */
-/*   seqgen2x.c                                                               */
 // Sam Siewert, December 2017
 //
-// Sequencer Generic @ 2x Rate for 10Hz Capture
+// Sequencer Generic
 //
 // The purpose of this code is to provide an example for how to best
 // sequence a set of periodic services for problems similar to and including
@@ -26,33 +25,33 @@
 // clock images (unique second hand / seconds) per image, you might use the 
 // following rates for each service:
 //
-// Sequencer - 60 Hz 
+// Sequencer - 30 Hz 
 //                   [gives semaphores to all other services]
-// Service_1 - 30 Hz, every other Sequencer loop
+// Service_1 - 3 Hz  , every 10th Sequencer loop
 //                   [buffers 3 images per second]
-// Service_2 - 10 Hz, every 6th Sequencer loop 
+// Service_2 - 1 Hz  , every 30th Sequencer loop 
 //                   [time-stamp middle sample image with cvPutText or header]
-// Service_3 - 5 Hz , every 12th Sequencer loop
+// Service_3 - 0.5 Hz, every 60th Sequencer loop
 //                   [difference current and previous time stamped images]
-// Service_4 - 10 Hz, every 6th Sequencer loop
+// Service_4 - 1 Hz, every 30th Sequencer loop
 //                   [save time stamped image with cvSaveImage or write()]
-// Service_5 - 5 Hz , every 12th Sequencer loop
+// Service_5 - 0.5 Hz, every 60th Sequencer loop
 //                   [save difference image with cvSaveImage or write()]
-// Service_6 - 10 Hz, every 6th Sequencer loop
+// Service_6 - 1 Hz, every 30th Sequencer loop
 //                   [write current time-stamped image to TCP socket server]
-// Service_7 - 1 Hz , every 60th Sequencer loop
+// Service_7 - 0.1 Hz, every 300th Sequencer loop
 //                   [syslog the time for debug]
 //
 // With the above, priorities by RM policy would be:
 //
-// Sequencer = RT_MAX	@ 60 Hz
-// Servcie_1 = RT_MAX-1	@ 30 Hz
-// Service_2 = RT_MAX-2	@ 10 Hz
-// Service_3 = RT_MAX-3	@ 5  Hz
-// Service_4 = RT_MAX-2	@ 10 Hz
-// Service_5 = RT_MAX-3	@ 5  Hz
-// Service_6 = RT_MAX-2	@ 10 Hz
-// Service_7 = RT_MIN	@ 1  Hz
+// Sequencer = RT_MAX	@ 30 Hz
+// Servcie_1 = RT_MAX-1	@ 3 Hz
+// Service_2 = RT_MAX-2	@ 1 Hz
+// Service_3 = RT_MAX-3	@ 0.5 Hz
+// Service_4 = RT_MAX-2	@ 1 Hz
+// Service_5 = RT_MAX-3	@ 0.5 Hz
+// Service_6 = RT_MAX-2	@ 1 Hz
+// Service_7 = RT_MIN	0.1 Hz
 //
 // Here are a few hardware/platform configuration settings on your Jetson
 // that you should also check before running this code:
@@ -86,6 +85,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdint.h>
 
 #include <pthread.h>
 #include <sched.h>
@@ -94,7 +94,7 @@
 
 #include <syslog.h>
 #include <sys/time.h>
-
+#include <sys/sysinfo.h>
 #include <errno.h>
 
 #define USEC_PER_MSEC (1000)
@@ -103,7 +103,32 @@
 #define TRUE (1)
 #define FALSE (0)
 
+#define NSEC_PER_SEC (1000000000)
+#define NSEC_PER_MSEC (1000000)
+#define NSEC_PER_MICROSEC (1000)
+#define DELAY_TICKS (1)
+#define ERROR (-1)
+#define OK (0)
 #define NUM_THREADS (7+1)
+
+uint32_t idx = 0, jdx = 1;
+uint32_t fib = 0, fib0 = 0, fib1 = 1;
+
+#define FIB_TEST(seqCnt, iterCnt)      \
+   for(idx=0; idx < iterCnt; idx++)    \
+   {                                   \
+      fib = fib0 + fib1;               \
+      while(jdx < seqCnt)              \
+      {                                \
+         fib0 = fib1;                  \
+         fib1 = fib;                   \
+         fib = fib0 + fib1;            \
+         jdx++;                        \
+      }                                \
+   }                                   \
+
+unsigned int seqIterations = 47;
+unsigned int reqIterations = 50000000;
 
 int abortTest=FALSE;
 int abortS1=FALSE, abortS2=FALSE, abortS3=FALSE, abortS4=FALSE, abortS5=FALSE, abortS6=FALSE, abortS7=FALSE;
@@ -130,6 +155,81 @@ double getTimeMsec(void);
 void print_scheduler(void);
 
 
+
+long int max (long int arr[], int len) {
+	long int maximum = arr[0];
+	for (int i = 1; i < len; i++) {
+		if(maximum < arr[i]) {
+			maximum = arr[i];
+		}
+	}
+	
+	return maximum;
+}
+/*
+* Function to calculate delta t
+*/
+int delta_t(struct timespec *stop, struct timespec *start, struct timespec *delta_t)
+{
+  int dt_sec=stop->tv_sec - start->tv_sec;
+  int dt_nsec=stop->tv_nsec - start->tv_nsec;
+
+
+  // case 1 - less than a second of change
+  if(dt_sec == 0)
+  {
+
+ if(dt_nsec >= 0 && dt_nsec < NSEC_PER_SEC)
+ {
+         //printf("nanosec greater at stop than start\n");
+ delta_t->tv_sec = 0;
+ delta_t->tv_nsec = dt_nsec;
+ }
+
+ else if(dt_nsec > NSEC_PER_SEC)
+ {
+         //printf("nanosec overflow\n");
+ delta_t->tv_sec = 1;
+ delta_t->tv_nsec = dt_nsec-NSEC_PER_SEC;
+ }
+
+ else // dt_nsec < 0 means stop is earlier than start
+ {
+        printf("stop is earlier than start\n");
+return(ERROR);  
+ }
+  }
+
+  // case 2 - more than a second of change, check for roll-over
+  else if(dt_sec > 0)
+  {
+ //printf("dt more than 1 second\n");
+
+ if(dt_nsec >= 0 && dt_nsec < NSEC_PER_SEC)
+ {
+         //printf("nanosec greater at stop than start\n");
+ delta_t->tv_sec = dt_sec;
+ delta_t->tv_nsec = dt_nsec;
+ }
+
+ else if(dt_nsec > NSEC_PER_SEC)
+ {
+         //printf("nanosec overflow\n");
+ delta_t->tv_sec = delta_t->tv_sec + 1;
+ delta_t->tv_nsec = dt_nsec-NSEC_PER_SEC;
+ }
+
+ else // dt_nsec < 0 means roll over
+ {
+         //printf("nanosec roll over\n");
+ delta_t->tv_sec = dt_sec-1;
+ delta_t->tv_nsec = NSEC_PER_SEC + dt_nsec;
+ }
+  }
+
+  return(OK);
+}
+
 void main(void)
 {
     struct timeval current_time_val;
@@ -145,10 +245,10 @@ void main(void)
     pid_t mainpid;
     cpu_set_t allcpuset;
 
-    printf("Starting High Rate Sequencer Demo\n");
+    printf("Starting Sequencer Demo\n");
     gettimeofday(&start_time_val, (struct timezone *)0);
     gettimeofday(&current_time_val, (struct timezone *)0);
-    syslog(LOG_CRIT, "START High Rate Sequencer @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
+    syslog(LOG_CRIT, "Sequencer @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
 
    printf("System has %d processors configured and %d available.\n", get_nprocs_conf(), get_nprocs());
 
@@ -216,7 +316,7 @@ void main(void)
     // Create Service threads which will block awaiting release for:
     //
 
-    // Servcie_1 = RT_MAX-1	@ 30 Hz
+    // Servcie_1 = RT_MAX-1	@ 3 Hz
     //
     rt_param[1].sched_priority=rt_max_prio-1;
     pthread_attr_setschedparam(&rt_sched_attr[1], &rt_param[1]);
@@ -232,7 +332,7 @@ void main(void)
         printf("pthread_create successful for service 1\n");
 
 
-    // Service_2 = RT_MAX-2	@ 10 Hz
+    // Service_2 = RT_MAX-2	@ 1 Hz
     //
     rt_param[2].sched_priority=rt_max_prio-2;
     pthread_attr_setschedparam(&rt_sched_attr[2], &rt_param[2]);
@@ -243,7 +343,7 @@ void main(void)
         printf("pthread_create successful for service 2\n");
 
 
-    // Service_3 = RT_MAX-3	@ 5 Hz
+    // Service_3 = RT_MAX-3	@ 0.5 Hz
     //
     rt_param[3].sched_priority=rt_max_prio-3;
     pthread_attr_setschedparam(&rt_sched_attr[3], &rt_param[3]);
@@ -254,9 +354,9 @@ void main(void)
         printf("pthread_create successful for service 3\n");
 
 
-    // Service_4 = RT_MAX-2	@ 10 Hz
+    // Service_4 = RT_MAX-2	@ 1 Hz
     //
-    rt_param[4].sched_priority=rt_max_prio-3;
+    rt_param[4].sched_priority=rt_max_prio-2;
     pthread_attr_setschedparam(&rt_sched_attr[4], &rt_param[4]);
     rc=pthread_create(&threads[4], &rt_sched_attr[4], Service_4, (void *)&(threadParams[4]));
     if(rc < 0)
@@ -265,7 +365,7 @@ void main(void)
         printf("pthread_create successful for service 4\n");
 
 
-    // Service_5 = RT_MAX-3	@ 5 Hz
+    // Service_5 = RT_MAX-3	@ 0.5 Hz
     //
     rt_param[5].sched_priority=rt_max_prio-3;
     pthread_attr_setschedparam(&rt_sched_attr[5], &rt_param[5]);
@@ -276,7 +376,7 @@ void main(void)
         printf("pthread_create successful for service 5\n");
 
 
-    // Service_6 = RT_MAX-2	@ 10 Hz
+    // Service_6 = RT_MAX-2	@ 1 Hz
     //
     rt_param[6].sched_priority=rt_max_prio-2;
     pthread_attr_setschedparam(&rt_sched_attr[6], &rt_param[6]);
@@ -287,7 +387,7 @@ void main(void)
         printf("pthread_create successful for service 6\n");
 
 
-    // Service_7 = RT_MIN	1 Hz
+    // Service_7 = RT_MIN	0.1 Hz
     //
     rt_param[7].sched_priority=rt_min_prio;
     pthread_attr_setschedparam(&rt_sched_attr[7], &rt_param[7]);
@@ -298,7 +398,7 @@ void main(void)
         printf("pthread_create successful for service 7\n");
 
 
-    // Wait for service threads to initialize and await relese by sequencer.
+    // Wait for service threads to initialize and await release by sequencer.
     //
     // Note that the sleep is not necessary of RT service threads are created wtih 
     // correct POSIX SCHED_FIFO priorities compared to non-RT priority of this main
@@ -308,9 +408,9 @@ void main(void)
  
     // Create Sequencer thread, which like a cyclic executive, is highest prio
     printf("Start sequencer\n");
-    threadParams[0].sequencePeriods=1800;
+    threadParams[0].sequencePeriods=900;
 
-    // Sequencer = RT_MAX	@ 60 Hz
+    // Sequencer = RT_MAX	@ 30 Hz
     //
     rt_param[0].sched_priority=rt_max_prio;
     pthread_attr_setschedparam(&rt_sched_attr[0], &rt_param[0]);
@@ -331,7 +431,7 @@ void main(void)
 void *Sequencer(void *threadp)
 {
     struct timeval current_time_val;
-    struct timespec delay_time = {0,16666666}; // delay for 16.67 msec, 60 Hz
+    struct timespec delay_time = {0, 16666666}; // delay for 33.33 msec, 30 Hz
     struct timespec remaining_time;
     double current_time;
     double residual;
@@ -371,7 +471,7 @@ void *Sequencer(void *threadp)
 
         seqCnt++;
         gettimeofday(&current_time_val, (struct timezone *)0);
-        syslog(LOG_CRIT, "Sequencer cycle %llu @ sec=%d, msec=%d\n", seqCnt, (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
+      //  syslog(LOG_CRIT, "Sequencer cycle %llu @ sec=%d, msec=%d\n", seqCnt, (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
 
 
         if(delay_cnt > 1) printf("Sequencer looping delay %d\n", delay_cnt);
@@ -379,25 +479,25 @@ void *Sequencer(void *threadp)
 
         // Release each service at a sub-rate of the generic sequencer rate
 
-        // Servcie_1 = RT_MAX-1	@ 30 Hz
+        // Servcie_1 = RT_MAX-1	@ 3 Hz
         if((seqCnt % 2) == 0) sem_post(&semS1);
 
-        // Service_2 = RT_MAX-2	@ 10 Hz
+        // Service_2 = RT_MAX-2	@ 1 Hz
         if((seqCnt % 6) == 0) sem_post(&semS2);
 
-        // Service_3 = RT_MAX-3	@ 5 Hz
+        // Service_3 = RT_MAX-3	@ 0.5 Hz
         if((seqCnt % 12) == 0) sem_post(&semS3);
 
-        // Service_4 = RT_MAX-2	@ 10 Hz
+        // Service_4 = RT_MAX-2	@ 1 Hz
         if((seqCnt % 6) == 0) sem_post(&semS4);
 
-        // Service_5 = RT_MAX-3	@ 5 Hz
+        // Service_5 = RT_MAX-3	@ 0.5 Hz
         if((seqCnt % 12) == 0) sem_post(&semS5);
 
-        // Service_6 = RT_MAX-2	@ 10 Hz
+        // Service_6 = RT_MAX-2	@ 1 Hz
         if((seqCnt % 6) == 0) sem_post(&semS6);
 
-        // Service_7 = RT_MIN	1 Hz
+        // Service_7 = RT_MIN	0.1 Hz
         if((seqCnt % 60) == 0) sem_post(&semS7);
 
         //gettimeofday(&current_time_val, (struct timezone *)0);
@@ -419,6 +519,10 @@ void *Sequencer(void *threadp)
 
 void *Service_1(void *threadp)
 {
+    struct timespec start_time = {0, 0};
+    struct timespec finish_time = {0, 0};
+    struct timespec thread_dt = {0, 0};
+    long int arr[90] = {0};
     struct timeval current_time_val;
     double current_time;
     unsigned long long S1Cnt=0;
@@ -429,14 +533,21 @@ void *Service_1(void *threadp)
     printf("Frame Sampler thread @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
 
     while(!abortS1)
-    {
+    {  
         sem_wait(&semS1);
+        clock_gettime(CLOCK_REALTIME, &start_time);        
         S1Cnt++;
-
+   	 FIB_TEST(seqIterations, reqIterations);
         gettimeofday(&current_time_val, (struct timezone *)0);
-        syslog(LOG_CRIT, "Frame Sampler release %llu @ sec=%d, msec=%d\n", S1Cnt, (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
+        clock_gettime(CLOCK_REALTIME, &finish_time);
+        delta_t(&finish_time, &start_time, &thread_dt);
+        syslog(LOG_DEBUG,"\n\tExecution Time for S1 = %f\n",  (float)thread_dt.tv_nsec);
+        arr[S1Cnt - 1] = thread_dt.tv_nsec;
+        //syslog(LOG_CRIT, "Frame Sampler release %llu @ sec=%d, msec=%d\n", S1Cnt, (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
     }
-
+    long int wcet = max(arr, S1Cnt);
+    
+    printf("\nWCET for S1 = %f", (float)wcet/(NSEC_PER_MSEC) );
     pthread_exit((void *)0);
 }
 
@@ -447,7 +558,11 @@ void *Service_2(void *threadp)
     double current_time;
     unsigned long long S2Cnt=0;
     threadParams_t *threadParams = (threadParams_t *)threadp;
-
+    long int arr[30] = {0};
+    struct timespec start_time = {0, 0};
+    struct timespec finish_time = {0, 0};
+    struct timespec thread_dt = {0, 0};
+    
     gettimeofday(&current_time_val, (struct timezone *)0);
     syslog(LOG_CRIT, "Time-stamp with Image Analysis thread @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
     printf("Time-stamp with Image Analysis thread @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
@@ -455,12 +570,19 @@ void *Service_2(void *threadp)
     while(!abortS2)
     {
         sem_wait(&semS2);
+        clock_gettime(CLOCK_REALTIME, &start_time);  
         S2Cnt++;
-
+   	 FIB_TEST(seqIterations, reqIterations);
         gettimeofday(&current_time_val, (struct timezone *)0);
-        syslog(LOG_CRIT, "Time-stamp with Image Analysis release %llu @ sec=%d, msec=%d\n", S2Cnt, (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
+        clock_gettime(CLOCK_REALTIME, &finish_time);
+        delta_t(&finish_time, &start_time, &thread_dt);
+        arr[S2Cnt - 1] = thread_dt.tv_nsec;
+        syslog(LOG_DEBUG,"\n\tExecution Time for S2= %f\n",  (float)thread_dt.tv_nsec);
+      //syslog(LOG_CRIT, "Time-stamp with Image Analysis release %llu @ sec=%d, msec=%d\n", S2Cnt, (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
     }
-
+    long int wcet = max(arr, S2Cnt);
+    
+    printf("\nWCET for S2 = %f", (float)wcet/(NSEC_PER_MSEC) );
     pthread_exit((void *)0);
 }
 
@@ -470,7 +592,11 @@ void *Service_3(void *threadp)
     double current_time;
     unsigned long long S3Cnt=0;
     threadParams_t *threadParams = (threadParams_t *)threadp;
-
+    struct timespec start_time = {0, 0};
+    struct timespec finish_time = {0, 0};
+    struct timespec thread_dt = {0, 0};
+    long int arr[15] = {0};
+        
     gettimeofday(&current_time_val, (struct timezone *)0);
     syslog(LOG_CRIT, "Difference Image Proc thread @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
     printf("Difference Image Proc thread @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
@@ -478,12 +604,17 @@ void *Service_3(void *threadp)
     while(!abortS3)
     {
         sem_wait(&semS3);
+        clock_gettime(CLOCK_REALTIME, &start_time);  
         S3Cnt++;
-
-        gettimeofday(&current_time_val, (struct timezone *)0);
-        syslog(LOG_CRIT, "Difference Image Proc release %llu @ sec=%d, msec=%d\n", S3Cnt, (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
+   	 FIB_TEST(seqIterations, reqIterations);
+        clock_gettime(CLOCK_REALTIME, &finish_time);
+        delta_t(&finish_time, &start_time, &thread_dt);
+        arr[S3Cnt - 1] = thread_dt.tv_nsec;
+        syslog(LOG_DEBUG,"\n\tExecution Time for S3= %f\n",  (float)thread_dt.tv_nsec);
     }
-
+    long int wcet = max(arr, S3Cnt);
+    
+    printf("\nWCET for S3 = %f", (float)wcet/(NSEC_PER_MSEC) );
     pthread_exit((void *)0);
 }
 
@@ -493,6 +624,10 @@ void *Service_4(void *threadp)
     double current_time;
     unsigned long long S4Cnt=0;
     threadParams_t *threadParams = (threadParams_t *)threadp;
+    struct timespec start_time = {0, 0};
+    struct timespec finish_time = {0, 0};
+    struct timespec thread_dt = {0, 0};
+    long int arr[30] = {0};
 
     gettimeofday(&current_time_val, (struct timezone *)0);
     syslog(LOG_CRIT, "Time-stamp Image Save to File thread @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
@@ -501,12 +636,17 @@ void *Service_4(void *threadp)
     while(!abortS4)
     {
         sem_wait(&semS4);
+        clock_gettime(CLOCK_REALTIME, &start_time);  
         S4Cnt++;
-
-        gettimeofday(&current_time_val, (struct timezone *)0);
-        syslog(LOG_CRIT, "Time-stamp Image Save to File release %llu @ sec=%d, msec=%d\n", S4Cnt, (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
+   	 FIB_TEST(seqIterations, reqIterations);
+        clock_gettime(CLOCK_REALTIME, &finish_time);
+        delta_t(&finish_time, &start_time, &thread_dt);
+        arr[S4Cnt - 1] = thread_dt.tv_nsec;
+        syslog(LOG_DEBUG,"\n\tExecution Time for S4= %f\n",  (float)thread_dt.tv_nsec);
     }
-
+    long int wcet = max(arr, S4Cnt);
+    
+    printf("\nWCET for S4 = %f", (float)wcet/(NSEC_PER_MSEC) );
     pthread_exit((void *)0);
 }
 
@@ -516,20 +656,31 @@ void *Service_5(void *threadp)
     double current_time;
     unsigned long long S5Cnt=0;
     threadParams_t *threadParams = (threadParams_t *)threadp;
-
+    struct timespec start_time = {0, 0};
+    struct timespec finish_time = {0, 0};
+    struct timespec thread_dt = {0, 0};
+    long int arr[15] = {0};
+        
     gettimeofday(&current_time_val, (struct timezone *)0);
     syslog(LOG_CRIT, "Processed Image Save to File thread @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
     printf("Processed Image Save to File thread @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
 
     while(!abortS5)
     {
+
         sem_wait(&semS5);
+        clock_gettime(CLOCK_REALTIME, &start_time); 
         S5Cnt++;
-
-        gettimeofday(&current_time_val, (struct timezone *)0);
-        syslog(LOG_CRIT, "Processed Image Save to File release %llu @ sec=%d, msec=%d\n", S5Cnt, (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
+   	 FIB_TEST(seqIterations, reqIterations);
+        clock_gettime(CLOCK_REALTIME, &finish_time);
+        delta_t(&finish_time, &start_time, &thread_dt);
+        arr[S5Cnt - 1] = thread_dt.tv_nsec;
+        syslog(LOG_DEBUG,"\n\tExecution Time for S5 = %f\n",  (float)thread_dt.tv_nsec);
     }
-
+    long int wcet = max(arr, S5Cnt);
+    
+    printf("\nWCET for S5 = %f", (float)wcet/(NSEC_PER_MSEC) );
+    
     pthread_exit((void *)0);
 }
 
@@ -539,7 +690,11 @@ void *Service_6(void *threadp)
     double current_time;
     unsigned long long S6Cnt=0;
     threadParams_t *threadParams = (threadParams_t *)threadp;
-
+    struct timespec start_time = {0, 0};
+    struct timespec finish_time = {0, 0};
+    struct timespec thread_dt = {0, 0};
+    long int arr[30] = {0};
+    
     gettimeofday(&current_time_val, (struct timezone *)0);
     syslog(LOG_CRIT, "Send Time-stamped Image to Remote thread @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
     printf("Send Time-stamped Image to Remote thread @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
@@ -547,12 +702,18 @@ void *Service_6(void *threadp)
     while(!abortS6)
     {
         sem_wait(&semS6);
+        clock_gettime(CLOCK_REALTIME, &start_time); 
+        
         S6Cnt++;
-
-        gettimeofday(&current_time_val, (struct timezone *)0);
-        syslog(LOG_CRIT, "Send Time-stamped Image to Remote release %llu @ sec=%d, msec=%d\n", S6Cnt, (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
+   	 FIB_TEST(seqIterations, reqIterations);
+        clock_gettime(CLOCK_REALTIME, &finish_time);
+        delta_t(&finish_time, &start_time, &thread_dt);
+        arr[S6Cnt - 1] = thread_dt.tv_nsec;
+        syslog(LOG_DEBUG,"\n\tExecution Time for S6= %f\n",  (float)thread_dt.tv_nsec);
     }
-
+    long int wcet = max(arr, S6Cnt);
+    
+    printf("\nWCET for S6 = %f", (float)wcet/(NSEC_PER_MSEC) );	
     pthread_exit((void *)0);
 }
 
@@ -561,21 +722,30 @@ void *Service_7(void *threadp)
     struct timeval current_time_val;
     double current_time;
     unsigned long long S7Cnt=0;
+    long int arr[3] = {0};
     threadParams_t *threadParams = (threadParams_t *)threadp;
-
+    struct timespec start_time = {0, 0};
+    struct timespec finish_time = {0, 0};
+    struct timespec thread_dt = {0, 0};
+    
     gettimeofday(&current_time_val, (struct timezone *)0);
-    syslog(LOG_CRIT, "Second Tick Debug thread @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
-    printf("Second Tick Debug thread @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
+    syslog(LOG_CRIT, "10 sec Tick Debug thread @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
+    printf("10 sec Tick Debug thread @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
 
     while(!abortS7)
     {
         sem_wait(&semS7);
+        clock_gettime(CLOCK_REALTIME, &start_time); 
         S7Cnt++;
-
-        gettimeofday(&current_time_val, (struct timezone *)0);
-        syslog(LOG_CRIT, "1 Sec Tick Debug release %llu @ sec=%d, msec=%d\n", S7Cnt, (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
+   	 FIB_TEST(seqIterations, reqIterations);
+        clock_gettime(CLOCK_REALTIME, &finish_time);
+        delta_t(&finish_time, &start_time, &thread_dt);
+        arr[S7Cnt - 1] = thread_dt.tv_nsec;
+        syslog(LOG_DEBUG,"\n\tExecution Time for S7= %f\n",  (float)thread_dt.tv_nsec);
     }
-
+    long int wcet = max(arr, S7Cnt);
+    
+    printf("\nWCET for S7 = %f", (float)wcet/(NSEC_PER_MSEC) );
     pthread_exit((void *)0);
 }
 
