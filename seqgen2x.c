@@ -128,7 +128,7 @@ uint32_t fib = 0, fib0 = 0, fib1 = 1;
    }                                   \
 
 unsigned int seqIterations = 47;
-unsigned int reqIterations = 50000000;
+unsigned int reqIterations = 5000000;
 
 int abortTest=FALSE;
 int abortS1=FALSE, abortS2=FALSE, abortS3=FALSE, abortS4=FALSE, abortS5=FALSE, abortS6=FALSE, abortS7=FALSE;
@@ -522,7 +522,7 @@ void *Service_1(void *threadp)
     struct timespec start_time = {0, 0};
     struct timespec finish_time = {0, 0};
     struct timespec thread_dt = {0, 0};
-    long int arr[90] = {0};
+    long int arr[900] = {0};
     struct timeval current_time_val;
     double current_time;
     unsigned long long S1Cnt=0;
@@ -558,7 +558,7 @@ void *Service_2(void *threadp)
     double current_time;
     unsigned long long S2Cnt=0;
     threadParams_t *threadParams = (threadParams_t *)threadp;
-    long int arr[30] = {0};
+    long int arr[300] = {0};
     struct timespec start_time = {0, 0};
     struct timespec finish_time = {0, 0};
     struct timespec thread_dt = {0, 0};
@@ -595,7 +595,7 @@ void *Service_3(void *threadp)
     struct timespec start_time = {0, 0};
     struct timespec finish_time = {0, 0};
     struct timespec thread_dt = {0, 0};
-    long int arr[15] = {0};
+    long int arr[150] = {0};
         
     gettimeofday(&current_time_val, (struct timezone *)0);
     syslog(LOG_CRIT, "Difference Image Proc thread @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
@@ -627,7 +627,7 @@ void *Service_4(void *threadp)
     struct timespec start_time = {0, 0};
     struct timespec finish_time = {0, 0};
     struct timespec thread_dt = {0, 0};
-    long int arr[30] = {0};
+    long int arr[300] = {0};
 
     gettimeofday(&current_time_val, (struct timezone *)0);
     syslog(LOG_CRIT, "Time-stamp Image Save to File thread @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
@@ -659,7 +659,7 @@ void *Service_5(void *threadp)
     struct timespec start_time = {0, 0};
     struct timespec finish_time = {0, 0};
     struct timespec thread_dt = {0, 0};
-    long int arr[15] = {0};
+    long int arr[150] = {0};
         
     gettimeofday(&current_time_val, (struct timezone *)0);
     syslog(LOG_CRIT, "Processed Image Save to File thread @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
@@ -693,7 +693,7 @@ void *Service_6(void *threadp)
     struct timespec start_time = {0, 0};
     struct timespec finish_time = {0, 0};
     struct timespec thread_dt = {0, 0};
-    long int arr[30] = {0};
+    long int arr[300] = {0};
     
     gettimeofday(&current_time_val, (struct timezone *)0);
     syslog(LOG_CRIT, "Send Time-stamped Image to Remote thread @ sec=%d, msec=%d\n", (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
@@ -722,7 +722,7 @@ void *Service_7(void *threadp)
     struct timeval current_time_val;
     double current_time;
     unsigned long long S7Cnt=0;
-    long int arr[3] = {0};
+    long int arr[30] = {0};
     threadParams_t *threadParams = (threadParams_t *)threadp;
     struct timespec start_time = {0, 0};
     struct timespec finish_time = {0, 0};
