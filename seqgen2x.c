@@ -359,7 +359,7 @@ void main(void)
 
     // Service_4 = RT_MAX-2	@ 1 Hz
     //
-    rt_param[4].sched_priority=rt_max_prio-3;
+    rt_param[4].sched_priority=rt_max_prio-2;
     pthread_attr_setschedparam(&rt_sched_attr[4], &rt_param[4]);
     rc=pthread_create(&threads[4], &rt_sched_attr[4], Service_4, (void *)&(threadParams[4]));
     if(rc < 0)
