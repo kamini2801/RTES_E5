@@ -1,8 +1,9 @@
 /* ========================================================================== */
 /*                                                                            */
+/*   seqgen2x.c                                                               */
 // Sam Siewert, December 2017
 //
-// Sequencer Generic
+// Sequencer Generic @ 2x Rate for 10Hz Capture
 //
 // The purpose of this code is to provide an example for how to best
 // sequence a set of periodic services for problems similar to and including
@@ -25,33 +26,33 @@
 // clock images (unique second hand / seconds) per image, you might use the 
 // following rates for each service:
 //
-// Sequencer - 30 Hz 
+// Sequencer - 60 Hz 
 //                   [gives semaphores to all other services]
-// Service_1 - 3 Hz  , every 10th Sequencer loop
+// Service_1 - 30 Hz, every other Sequencer loop
 //                   [buffers 3 images per second]
-// Service_2 - 1 Hz  , every 30th Sequencer loop 
+// Service_2 - 10 Hz, every 6th Sequencer loop 
 //                   [time-stamp middle sample image with cvPutText or header]
-// Service_3 - 0.5 Hz, every 60th Sequencer loop
+// Service_3 - 5 Hz , every 12th Sequencer loop
 //                   [difference current and previous time stamped images]
-// Service_4 - 1 Hz, every 30th Sequencer loop
+// Service_4 - 10 Hz, every 6th Sequencer loop
 //                   [save time stamped image with cvSaveImage or write()]
-// Service_5 - 0.5 Hz, every 60th Sequencer loop
+// Service_5 - 5 Hz , every 12th Sequencer loop
 //                   [save difference image with cvSaveImage or write()]
-// Service_6 - 1 Hz, every 30th Sequencer loop
+// Service_6 - 10 Hz, every 6th Sequencer loop
 //                   [write current time-stamped image to TCP socket server]
-// Service_7 - 0.1 Hz, every 300th Sequencer loop
+// Service_7 - 1 Hz , every 60th Sequencer loop
 //                   [syslog the time for debug]
 //
 // With the above, priorities by RM policy would be:
 //
-// Sequencer = RT_MAX	@ 30 Hz
-// Servcie_1 = RT_MAX-1	@ 3 Hz
-// Service_2 = RT_MAX-2	@ 1 Hz
-// Service_3 = RT_MAX-3	@ 0.5 Hz
-// Service_4 = RT_MAX-2	@ 1 Hz
-// Service_5 = RT_MAX-3	@ 0.5 Hz
-// Service_6 = RT_MAX-2	@ 1 Hz
-// Service_7 = RT_MIN	0.1 Hz
+// Sequencer = RT_MAX	@ 60 Hz
+// Servcie_1 = RT_MAX-1	@ 30 Hz
+// Service_2 = RT_MAX-2	@ 10 Hz
+// Service_3 = RT_MAX-3	@ 5  Hz
+// Service_4 = RT_MAX-2	@ 10 Hz
+// Service_5 = RT_MAX-3	@ 5  Hz
+// Service_6 = RT_MAX-2	@ 10 Hz
+// Service_7 = RT_MIN	@ 1  Hz
 //
 // Here are a few hardware/platform configuration settings on your Jetson
 // that you should also check before running this code:
@@ -78,6 +79,7 @@
 //    threads to CPU cores (not set affinity) and as long as you have more
 //    threads than you have cores, this is still an over-subscribed system
 //    where RM policy is required over the set of cores.
+
 
 // This is necessary for CPU affinity macros in Linux
 #define _GNU_SOURCE
@@ -357,7 +359,7 @@ void main(void)
 
     // Service_4 = RT_MAX-2	@ 1 Hz
     //
-    rt_param[4].sched_priority=rt_max_prio-2;
+    rt_param[4].sched_priority=rt_max_prio-3;
     pthread_attr_setschedparam(&rt_sched_attr[4], &rt_param[4]);
     rc=pthread_create(&threads[4], &rt_sched_attr[4], Service_4, (void *)&(threadParams[4]));
     if(rc < 0)
