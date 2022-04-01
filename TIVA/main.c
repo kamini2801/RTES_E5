@@ -20,6 +20,12 @@
 #include "driverlib/debug.h"
 #include "driverlib/rom.h"
 #include "driverlib/rom_map.h"
+#include "inc/tm4c1294ncpdt.h"
+#include "inc/hw_memmap.h"
+#include "inc/hw_types.h"
+#include "driverlib/interrupt.h"
+#include "driverlib/gpio.h"
+#include "driverlib/timer.h"
 
 // FreeRTOS includes
 #include "FreeRTOSConfig.h"
@@ -44,6 +50,8 @@ void Task7(void *pvParameters);
 void TaskSequencer(void *pvParameters);
 
 
+uint32_t ui32SysClkFreq;
+uint32_t ui32Period;
 uint32_t idx = 0, jdx = 1;
 uint32_t fib = 0, fib0 = 0, fib1 = 1;
 
@@ -61,7 +69,7 @@ uint32_t fib = 0, fib0 = 0, fib1 = 1;
    }                                   \
 
 unsigned int seqIterations = 47;
-unsigned int reqIterations = 500000;
+unsigned int reqIterations = 20000;
 
 #define SEQ_CYCLES 300
 #define TRUE 1
@@ -89,6 +97,72 @@ int max (long int arr[], int len) {
     return maximum;
 }
 
+static volatile int seqCount = 0;
+
+void Timer0IntHandler(void)
+{
+    TimerIntClear(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
+
+    seqCount++;
+    int flag = 0;
+
+
+
+    if( (seqCount > SEQ_CYCLES) && (flag == 0) ) {
+
+        xSemaphoreGive( semS1 );
+        xSemaphoreGive( semS2 );
+        xSemaphoreGive( semS3 );
+        xSemaphoreGive( semS4 );
+        xSemaphoreGive( semS5 );
+        xSemaphoreGive( semS6 );
+        xSemaphoreGive( semS7 );
+
+        abortS1 = TRUE;
+        abortS2 = TRUE;
+        abortS3 = TRUE;
+        abortS4 = TRUE;
+        abortS5 = TRUE;
+        abortS6 = TRUE;
+        abortS7 = TRUE;
+        flag = 1;
+
+    }
+
+    else {
+
+        if( seqCount%10 == 0 )
+             {
+                 if(xSemaphoreGive( semS1 ) != pdTRUE) UARTprintf("Failed to release sem1\r\n");
+              }
+         if( seqCount%30 == 0 )
+             {
+                 if(xSemaphoreGive( semS2 ) != pdTRUE) UARTprintf("Failed to release sem2\r\n");
+             }
+         if( seqCount%60 == 0 )
+             {
+                 if(xSemaphoreGive( semS3 ) != pdTRUE) UARTprintf("Failed to release sem3\r\n");
+             }
+         if( seqCount%30 == 0 )
+             {
+                 if(xSemaphoreGive( semS4 ) != pdTRUE) UARTprintf("Failed to release sem4\r\n");
+             }
+         if( seqCount%60 == 0 )
+             {
+                 if(xSemaphoreGive( semS5 ) != pdTRUE) UARTprintf("Failed to release sem5\r\n");
+             }
+         if( seqCount%30 == 0 )
+             {
+                 if(xSemaphoreGive( semS6 ) != pdTRUE) UARTprintf("Failed to release sem6\r\n");
+             }
+         if( seqCount%300 == 0 )
+             {
+                 if(xSemaphoreGive( semS7 ) != pdTRUE) UARTprintf("Failed to release sem7\r\n");
+
+             }
+    }
+
+}
 
 // Main function
 int main(void)
@@ -135,74 +209,50 @@ int main(void)
     // Create tasks
 
     xTaskCreate(Task1, (const portCHAR *)"Task1",
-                    configMINIMAL_STACK_SIZE, NULL, 2, NULL);
+                    configMINIMAL_STACK_SIZE, NULL, 7, NULL);
 
     xTaskCreate(Task2, (const portCHAR *)"Task2",
-                        configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+                        configMINIMAL_STACK_SIZE, NULL, 6, NULL);
 
     xTaskCreate(Task3, (const portCHAR *)"Task3",
-                        configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+                        configMINIMAL_STACK_SIZE, NULL, 5, NULL);
 
     xTaskCreate(Task4, (const portCHAR *)"Task4",
-                        configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+                        configMINIMAL_STACK_SIZE, NULL, 4, NULL);
 
     xTaskCreate(Task5, (const portCHAR *)"Task5",
-                        configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+                        configMINIMAL_STACK_SIZE, NULL, 3, NULL);
 
     xTaskCreate(Task6, (const portCHAR *)"Task6",
-                        configMINIMAL_STACK_SIZE, NULL, 1, NULL);
+                        configMINIMAL_STACK_SIZE, NULL, 2, NULL);
 
     xTaskCreate(Task7, (const portCHAR *)"Task7",
                         configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 
-    xTaskCreate(TaskSequencer, (const portCHAR *)"TaskSequencer",
-                        configMINIMAL_STACK_SIZE, NULL, 1, NULL);
 
+
+    ui32SysClkFreq = SysCtlClockFreqSet((SYSCTL_XTAL_25MHZ | SYSCTL_OSC_MAIN | SYSCTL_USE_PLL | SYSCTL_CFG_VCO_480), 120000000);
+
+     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPION);
+     SysCtlPeripheralEnable(SYSCTL_PERIPH_TIMER0);
+
+     GPIOPinTypeGPIOOutput(GPIO_PORTN_BASE, GPIO_PIN_1);
+     TimerConfigure(TIMER0_BASE, TIMER_CFG_PERIODIC);
+
+     ui32Period = (ui32SysClkFreq / 30);
+     TimerLoadSet(TIMER0_BASE, TIMER_A, ui32Period);
+     IntEnable(INT_TIMER0A);
+     TimerIntEnable(TIMER0_BASE, TIMER_TIMA_TIMEOUT);
+     IntMasterEnable();
+     TimerEnable(TIMER0_BASE, TIMER_A);
 
     UARTprintf("starting Scheduler\n");
     vTaskStartScheduler();
-    
+
     // Code should never reach this point
     return 0;
 }
 
-
-// Flash the LEDs on the launchpad
-void demoLEDTask(void *pvParameters)
-{
-    for (;;)
-    {
-        // Turn on LED 1
-        LEDWrite(0x0F, 0x01);
-        vTaskDelay(1000);
-
-        // Turn on LED 2
-        LEDWrite(0x0F, 0x02);
-        vTaskDelay(1000);
-
-        // Turn on LED 3
-        LEDWrite(0x0F, 0x04);
-        vTaskDelay(1000);
-
-        // Turn on LED 4
-        LEDWrite(0x0F, 0x08);
-        vTaskDelay(1000);
-    }
-}
-
-
-// Write text over the Stellaris debug interface UART port
-void demoSerialTask(void *pvParameters)
-{
-    // Set up the UART which is connected to the virtual COM port
-    UARTStdioConfig(0, 57600, SYSTEM_CLOCK);
-
-    for (;;)
-    {
-        UARTprintf("Hello, world from FreeRTOS 10.2!\r\n");
-        vTaskDelay(5000 / portTICK_PERIOD_MS);
-    }
-}
 
 
 /*
@@ -320,11 +370,9 @@ void Task1(void *pvParameters)
     if( xSemaphoreGive( mutex ) != pdTRUE )
                                     UARTprintf("Task 1 failed to release mutex");
 
-    vTaskDelay(3000);
 
-    taskYIELD();
+    vTaskDelete(NULL);
 
-   while(1);
 }
 
 
@@ -363,10 +411,6 @@ void Task2(void *pvParameters)
 
         if( xSemaphoreGive( mutex ) != pdTRUE )
                                         UARTprintf("Task 1 failed to release mutex");
-
-        vTaskDelay(3000);
-
-        taskYIELD();
 
         vTaskDelete(NULL);
 }
@@ -407,9 +451,6 @@ void Task3(void *pvParameters)
         if( xSemaphoreGive( mutex ) != pdTRUE )
                                         UARTprintf("Task 1 failed to release mutex");
 
-        vTaskDelay(3000);
-
-        taskYIELD();
 
         vTaskDelete(NULL);
 }
@@ -452,9 +493,6 @@ void Task4(void *pvParameters)
         if( xSemaphoreGive( mutex ) != pdTRUE )
                             UARTprintf("Task 1 failed to release mutex");
 
-        vTaskDelay(3000);
-
-        taskYIELD();
 
         vTaskDelete(NULL);
 }
@@ -495,9 +533,6 @@ void Task5(void *pvParameters)
         if( xSemaphoreGive( mutex ) != pdTRUE )
                          UARTprintf("Task 1 failed to release mutex");
 
-        vTaskDelay(3000);
-
-        taskYIELD();
 
         vTaskDelete(NULL);
 }
@@ -540,10 +575,6 @@ void Task6(void *pvParameters)
         if( xSemaphoreGive( mutex ) != pdTRUE )
                                         UARTprintf("Task 1 failed to release mutex");
 
-        vTaskDelay(3000);
-
-        taskYIELD();
-
         vTaskDelete(NULL);
 }
 
@@ -555,6 +586,8 @@ void Task7(void *pvParameters)
         long int arr[3] = {0};             //timestamp array
 
         TickType_t Task_start = 0;
+
+
 
         UARTprintf("Task 7 start\n");
 
@@ -584,9 +617,6 @@ void Task7(void *pvParameters)
         if( xSemaphoreGive( mutex ) != pdTRUE )
                                 UARTprintf("Task 1 failed to release mutex");
 
-        vTaskDelay(3000);
-
-        taskYIELD();
 
         vTaskDelete(NULL);
 }
