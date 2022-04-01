@@ -69,7 +69,7 @@ uint32_t fib = 0, fib0 = 0, fib1 = 1;
    }                                   \
 
 unsigned int seqIterations = 47;
-unsigned int reqIterations = 20000;
+unsigned int reqIterations = 10000;
 
 #define SEQ_CYCLES 300
 #define TRUE 1
@@ -218,13 +218,13 @@ int main(void)
                         configMINIMAL_STACK_SIZE, NULL, 5, NULL);
 
     xTaskCreate(Task4, (const portCHAR *)"Task4",
-                        configMINIMAL_STACK_SIZE, NULL, 4, NULL);
+                        configMINIMAL_STACK_SIZE, NULL, 6, NULL);
 
     xTaskCreate(Task5, (const portCHAR *)"Task5",
-                        configMINIMAL_STACK_SIZE, NULL, 3, NULL);
+                        configMINIMAL_STACK_SIZE, NULL, 5, NULL);
 
     xTaskCreate(Task6, (const portCHAR *)"Task6",
-                        configMINIMAL_STACK_SIZE, NULL, 2, NULL);
+                        configMINIMAL_STACK_SIZE, NULL, 6, NULL);
 
     xTaskCreate(Task7, (const portCHAR *)"Task7",
                         configMINIMAL_STACK_SIZE, NULL, 1, NULL);
@@ -254,79 +254,6 @@ int main(void)
 }
 
 
-
-/*
- *  Sequencer
- *
- */
-void TaskSequencer(void *pvParameters)
-{
-    int seqCount = 0;
-
-    do
-    {
-        vTaskDelay(33);                 // 30 Hz
-
-        seqCount++;
-
-        if( seqCount%10 == 0 )
-            {
-                if(xSemaphoreGive( semS1 ) != pdTRUE) UARTprintf("Failed to release sem1\r\n");
-             }
-        if( seqCount%30 == 0 )
-            {
-                if(xSemaphoreGive( semS2 ) != pdTRUE) UARTprintf("Failed to release sem2\r\n");
-            }
-        if( seqCount%60 == 0 )
-            {
-                if(xSemaphoreGive( semS3 ) != pdTRUE) UARTprintf("Failed to release sem3\r\n");
-            }
-        if( seqCount%30 == 0 )
-            {
-                if(xSemaphoreGive( semS4 ) != pdTRUE) UARTprintf("Failed to release sem4\r\n");
-            }
-        if( seqCount%60 == 0 )
-            {
-                if(xSemaphoreGive( semS5 ) != pdTRUE) UARTprintf("Failed to release sem5\r\n");
-            }
-        if( seqCount%30 == 0 )
-            {
-                if(xSemaphoreGive( semS6 ) != pdTRUE) UARTprintf("Failed to release sem6\r\n");
-            }
-        if( seqCount%300 == 0 )
-            {
-                if(xSemaphoreGive( semS7 ) != pdTRUE) UARTprintf("Failed to release sem7\r\n");
-            }
-    }while(seqCount < SEQ_CYCLES);
-
-    xSemaphoreGive( semS1 );
-    xSemaphoreGive( semS2 );
-    xSemaphoreGive( semS3 );
-    xSemaphoreGive( semS4 );
-    xSemaphoreGive( semS5 );
-    xSemaphoreGive( semS6 );
-    xSemaphoreGive( semS7 );
-
-    abortS1 = TRUE;
-    abortS2 = TRUE;
-    abortS3 = TRUE;
-    abortS4 = TRUE;
-    abortS5 = TRUE;
-    abortS6 = TRUE;
-    abortS7 = TRUE;
-
-    taskYIELD();
-
-    if( xSemaphoreTake( mutex, portMAX_DELAY ) != pdTRUE )
-                    UARTprintf("Task 1 failed to acquire mutex");
-
-        UARTprintf("Sequencer end");
-
-        if( xSemaphoreGive( mutex ) != pdTRUE )
-                                        UARTprintf("Task 1 failed to release mutex");
-
-    vTaskDelete(NULL);
-}
 
 /*
 *
@@ -365,7 +292,7 @@ void Task1(void *pvParameters)
     if( xSemaphoreTake( mutex, portMAX_DELAY ) != pdTRUE )
                 UARTprintf("Task 1 failed to acquire mutex");
 
-    UARTprintf("Task 1 execution time: %d\n", wcet);
+    UARTprintf("Task 1 WC execution time: %d\n", wcet);
 
     if( xSemaphoreGive( mutex ) != pdTRUE )
                                     UARTprintf("Task 1 failed to release mutex");
@@ -407,7 +334,7 @@ void Task2(void *pvParameters)
         if( xSemaphoreTake( mutex, portMAX_DELAY ) != pdTRUE )
                         UARTprintf("Task 1 failed to acquire mutex");
 
-        UARTprintf("Task 2 execution time: %d\n", wcet);
+        UARTprintf("Task 2 WC execution time: %d\n", wcet);
 
         if( xSemaphoreGive( mutex ) != pdTRUE )
                                         UARTprintf("Task 1 failed to release mutex");
@@ -428,7 +355,7 @@ void Task3(void *pvParameters)
         while(!abortS3)
         {
             if( xSemaphoreTake( semS3, portMAX_DELAY ) != pdTRUE )
-                UARTprintf("Task 3 failed to acquire semaphore");
+                UARTprintf("Task 3  failed to acquire semaphore");
 
             Task_start = xTaskGetTickCount();                           //start time
 
@@ -446,7 +373,7 @@ void Task3(void *pvParameters)
         if( xSemaphoreTake( mutex, portMAX_DELAY ) != pdTRUE )
                         UARTprintf("Task 1 failed to acquire mutex");
 
-        UARTprintf("Task 3 execution time: %d\n", wcet);
+        UARTprintf("Task 3 WC execution time: %d\n", wcet);
 
         if( xSemaphoreGive( mutex ) != pdTRUE )
                                         UARTprintf("Task 1 failed to release mutex");
@@ -488,7 +415,7 @@ void Task4(void *pvParameters)
                         UARTprintf("Task 1 failed to acquire mutex");
 
 
-        UARTprintf("Task 4 execution time: %d\n", wcet);
+        UARTprintf("Task 4 WC execution time: %d\n", wcet);
 
         if( xSemaphoreGive( mutex ) != pdTRUE )
                             UARTprintf("Task 1 failed to release mutex");
@@ -528,7 +455,7 @@ void Task5(void *pvParameters)
         if( xSemaphoreTake( mutex, portMAX_DELAY ) != pdTRUE )
                         UARTprintf("Task 1 failed to acquire mutex");
 
-        UARTprintf("Task 5 execution time: %d\n", wcet);
+        UARTprintf("Task 5 WC execution time: %d\n", wcet);
 
         if( xSemaphoreGive( mutex ) != pdTRUE )
                          UARTprintf("Task 1 failed to release mutex");
@@ -570,7 +497,7 @@ void Task6(void *pvParameters)
                         UARTprintf("Task 1 failed to acquire mutex");
 
 
-        UARTprintf("Task 6 execution time: %d\n", wcet);
+        UARTprintf("Task 6 WC execution time: %d\n", wcet);
 
         if( xSemaphoreGive( mutex ) != pdTRUE )
                                         UARTprintf("Task 1 failed to release mutex");
@@ -612,7 +539,7 @@ void Task7(void *pvParameters)
         if( xSemaphoreTake( mutex, portMAX_DELAY ) != pdTRUE )
                         UARTprintf("Task 1 failed to acquire mutex");
 
-        UARTprintf("Task 7 execution time: %d\n", wcet);
+        UARTprintf("Task 7 WC execution time: %d\n", wcet);
 
         if( xSemaphoreGive( mutex ) != pdTRUE )
                                 UARTprintf("Task 1 failed to release mutex");
