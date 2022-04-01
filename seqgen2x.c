@@ -411,7 +411,7 @@ void main(void)
  
     // Create Sequencer thread, which like a cyclic executive, is highest prio
     printf("Start sequencer\n");
-    threadParams[0].sequencePeriods=900;
+    threadParams[0].sequencePeriods=1800;
 
     // Sequencer = RT_MAX	@ 30 Hz
     //
