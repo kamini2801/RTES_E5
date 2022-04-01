@@ -128,7 +128,7 @@ uint32_t fib = 0, fib0 = 0, fib1 = 1;
    }                                   \
 
 unsigned int seqIterations = 47;
-unsigned int reqIterations = 20000;
+unsigned int reqIterations = 5000000;
 
 int abortTest=FALSE;
 int abortS1=FALSE, abortS2=FALSE, abortS3=FALSE, abortS4=FALSE, abortS5=FALSE, abortS6=FALSE, abortS7=FALSE;
@@ -271,7 +271,8 @@ void main(void)
     if (sem_init (&semS7, 0, 0)) { printf ("Failed to initialize S7 semaphore\n"); exit (-1); }
 
     mainpid=getpid();
-
+    syslog(LOG_DEBUG,"\nBEGIN LOG\n");
+    
     rt_max_prio = sched_get_priority_max(SCHED_FIFO);
     rt_min_prio = sched_get_priority_min(SCHED_FIFO);
 
