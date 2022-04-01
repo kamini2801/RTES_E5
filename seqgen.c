@@ -541,7 +541,7 @@ void *Service_1(void *threadp)
         gettimeofday(&current_time_val, (struct timezone *)0);
         clock_gettime(CLOCK_REALTIME, &finish_time);
         delta_t(&finish_time, &start_time, &thread_dt);
-        syslog(LOG_DEBUG,"\n\tExecution Time for S1 = %f\n",  (float)thread_dt.tv_nsec);
+        syslog(LOG_DEBUG,"\n\tExecution Time for S1 = %f\n",  (float)thread_dt.tv_nsec/(NSEC_PER_MSEC));
         arr[S1Cnt - 1] = thread_dt.tv_nsec;
         //syslog(LOG_CRIT, "Frame Sampler release %llu @ sec=%d, msec=%d\n", S1Cnt, (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
     }
@@ -577,7 +577,7 @@ void *Service_2(void *threadp)
         clock_gettime(CLOCK_REALTIME, &finish_time);
         delta_t(&finish_time, &start_time, &thread_dt);
         arr[S2Cnt - 1] = thread_dt.tv_nsec;
-        syslog(LOG_DEBUG,"\n\tExecution Time for S2= %f\n",  (float)thread_dt.tv_nsec);
+        syslog(LOG_DEBUG,"\n\tExecution Time for S2 = %f\n",  (float)thread_dt.tv_nsec/(NSEC_PER_MSEC));
       //syslog(LOG_CRIT, "Time-stamp with Image Analysis release %llu @ sec=%d, msec=%d\n", S2Cnt, (int)(current_time_val.tv_sec-start_time_val.tv_sec), (int)current_time_val.tv_usec/USEC_PER_MSEC);
     }
     long int wcet = max(arr, S2Cnt);
@@ -610,7 +610,7 @@ void *Service_3(void *threadp)
         clock_gettime(CLOCK_REALTIME, &finish_time);
         delta_t(&finish_time, &start_time, &thread_dt);
         arr[S3Cnt - 1] = thread_dt.tv_nsec;
-        syslog(LOG_DEBUG,"\n\tExecution Time for S3= %f\n",  (float)thread_dt.tv_nsec);
+        syslog(LOG_DEBUG,"\n\tExecution Time for S3 = %f\n",  (float)thread_dt.tv_nsec/(NSEC_PER_MSEC));
     }
     long int wcet = max(arr, S3Cnt);
     
@@ -642,7 +642,7 @@ void *Service_4(void *threadp)
         clock_gettime(CLOCK_REALTIME, &finish_time);
         delta_t(&finish_time, &start_time, &thread_dt);
         arr[S4Cnt - 1] = thread_dt.tv_nsec;
-        syslog(LOG_DEBUG,"\n\tExecution Time for S4= %f\n",  (float)thread_dt.tv_nsec);
+        syslog(LOG_DEBUG,"\n\tExecution Time for S4 = %f\n",  (float)thread_dt.tv_nsec/(NSEC_PER_MSEC));
     }
     long int wcet = max(arr, S4Cnt);
     
@@ -675,7 +675,7 @@ void *Service_5(void *threadp)
         clock_gettime(CLOCK_REALTIME, &finish_time);
         delta_t(&finish_time, &start_time, &thread_dt);
         arr[S5Cnt - 1] = thread_dt.tv_nsec;
-        syslog(LOG_DEBUG,"\n\tExecution Time for S5 = %f\n",  (float)thread_dt.tv_nsec);
+        syslog(LOG_DEBUG,"\n\tExecution Time for S5 = %f\n",  (float)thread_dt.tv_nsec/(NSEC_PER_MSEC));
     }
     long int wcet = max(arr, S5Cnt);
     
@@ -709,7 +709,7 @@ void *Service_6(void *threadp)
         clock_gettime(CLOCK_REALTIME, &finish_time);
         delta_t(&finish_time, &start_time, &thread_dt);
         arr[S6Cnt - 1] = thread_dt.tv_nsec;
-        syslog(LOG_DEBUG,"\n\tExecution Time for S6= %f\n",  (float)thread_dt.tv_nsec);
+        syslog(LOG_DEBUG,"\n\tExecution Time for S6 = %f\n",  (float)thread_dt.tv_nsec/(NSEC_PER_MSEC));
     }
     long int wcet = max(arr, S6Cnt);
     
@@ -741,7 +741,7 @@ void *Service_7(void *threadp)
         clock_gettime(CLOCK_REALTIME, &finish_time);
         delta_t(&finish_time, &start_time, &thread_dt);
         arr[S7Cnt - 1] = thread_dt.tv_nsec;
-        syslog(LOG_DEBUG,"\n\tExecution Time for S7= %f\n",  (float)thread_dt.tv_nsec);
+        syslog(LOG_DEBUG,"\n\tExecution Time for S7 = %f\n",  (float)thread_dt.tv_nsec/(NSEC_PER_MSEC));
     }
     long int wcet = max(arr, S7Cnt);
     
