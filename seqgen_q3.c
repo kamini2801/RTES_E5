@@ -547,7 +547,7 @@ void *Service_1(void *threadp)
     }
     long int wcet = max(arr, S1Cnt);
     
-    printf("\nWCET for S1 = %ld ns", wcet );
+    printf("\nWCET for S1 = %ld usec", wcet/1000 );
     pthread_exit((void *)0);
 }
 
@@ -582,7 +582,7 @@ void *Service_2(void *threadp)
     }
     long int wcet = max(arr, S2Cnt);
     
-    printf("\nWCET for S2 = %ld ns", wcet );
+    printf("\nWCET for S2 = %ld usec", wcet/1000 );
     pthread_exit((void *)0);
 }
 
@@ -614,7 +614,7 @@ void *Service_3(void *threadp)
     }
     long int wcet = max(arr, S3Cnt);
     
-    printf("\nWCET for S3 = %ld ns", wcet );
+    printf("\nWCET for S3 = %ld usec", wcet/1000 );
     pthread_exit((void *)0);
 }
 
@@ -646,7 +646,7 @@ void *Service_4(void *threadp)
     }
     long int wcet = max(arr, S4Cnt);
     
-    printf("\nWCET for S4 = %ld ns", wcet );
+    printf("\nWCET for S4 = %ld usec", wcet/1000);
     pthread_exit((void *)0);
 }
 
@@ -679,7 +679,7 @@ void *Service_5(void *threadp)
     }
     long int wcet = max(arr, S5Cnt);
     
-    printf("\nWCET for S5 = %ld ns", wcet );
+    printf("\nWCET for S5 = %ld  usec", wcet/1000 );
     
     pthread_exit((void *)0);
 }
@@ -713,7 +713,7 @@ void *Service_6(void *threadp)
     }
     long int wcet = max(arr, S6Cnt);
     
-    printf("\nWCET for S6 = %ld ns", wcet );
+    printf("\nWCET for S6 = %ld usec", wcet/1000 );
     pthread_exit((void *)0);
 }
 
@@ -745,7 +745,7 @@ void *Service_7(void *threadp)
     }
     long int wcet = max(arr, S7Cnt);
     
-    printf("\nWCET for S7 = %ld ns", wcet );
+    printf("\nWCET for S7 = %ld  usec", wcet/1000 );
     pthread_exit((void *)0);
 }
 
